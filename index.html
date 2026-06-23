@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPAI — Satellite Data Settlement Protocol</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --void:#04060D;
+  --deep:#080C18;
+  --panel:rgba(10,16,30,0.82);
+  --line:rgba(120,160,220,0.10);
+  --line2:rgba(120,160,220,0.18);
+  --cyan:#3DD6FF;
+  --cyan-dim:rgba(61,214,255,0.5);
+  --amber:#FFB547;
+  --green:#4FFFA8;
+  --red:#FF6B6B;
+  --violet:#9D7BFF;
+  --text:#EAF0FB;
+  --muted:rgba(180,196,224,0.55);
+  --muted2:rgba(180,196,224,0.32);
+}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--void);}
+body{
+  font-family:'Space Grotesk',system-ui,sans-serif;
+  color:var(--text);
+  -webkit-font-smoothing:antialiased;
+}
+.mono{font-family:'JetBrains Mono',monospace;}
+
+canvas#globe{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:1;}
+
+/* scanline / grain overlay for "console" feel */
+.scan{
+  position:fixed;inset:0;z-index:2;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent 0,transparent 2px,rgba(0,0,0,0.04) 3px,transparent 4px);
+  opacity:0.5;mix-blend-mode:overlay;
+}
+.vignette{
+  position:fixed;inset:0;z-index:2;pointer-events:none;
+  background:radial-gradient(ellipse at center,transparent 45%,rgba(2,4,10,0.55) 100%);
+}
+
+/* ── TOP NAV ── */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:200;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:1.1rem 1.6rem;
+}
+.brand{display:flex;align-items:center;gap:0.7rem;}
+.brand-mark{
+  width:30px;height:30px;border:1.5px solid var(--cyan);
+  border-radius:50%;position:relative;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+}
+.brand-mark::before{
+  content:'';width:4px;height:4px;border-radius:50%;background:var(--cyan);
+  box-shadow:0 0 8px var(--cyan);
+}
+.brand-mark::after{
+  content:'';position:absolute;inset:-4px;border:1px solid var(--cyan-dim);
+  border-radius:50%;border-left-color:transparent;border-bottom-color:transparent;
+  animation:spin 4s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+.brand-name{font-size:1.15rem;font-weight:700;letter-spacing:0.22em;}
+.brand-name b{color:var(--cyan);}
+
+.nav-right{display:flex;align-items:center;gap:0.8rem;}
+
+/* language dropdown */
+.lang-wrap{position:relative;}
+.lang-trigger{
+  display:flex;align-items:center;gap:0.4rem;
+  background:var(--panel);border:1px solid var(--line2);
+  color:var(--text);padding:0.4rem 0.7rem;border-radius:7px;
+  font-size:0.72rem;font-weight:500;cursor:pointer;
+  font-family:'JetBrains Mono',monospace;letter-spacing:0.05em;
+  backdrop-filter:blur(12px);transition:border-color 0.2s;
+}
+.lang-trigger:hover{border-color:var(--cyan-dim);}
+.lang-trigger .chev{font-size:0.6rem;opacity:0.6;}
+.lang-menu{
+  position:absolute;top:calc(100% + 6px);right:0;
+  background:var(--panel);border:1px solid var(--line2);
+  border-radius:9px;backdrop-filter:blur(20px);
+  overflow:hidden;min-width:140px;
+  opacity:0;transform:translateY(-6px);pointer-events:none;
+  transition:opacity 0.2s,transform 0.2s;
+  box-shadow:0 12px 40px rgba(0,0,0,0.5);
+}
+.lang-menu.open{opacity:1;transform:translateY(0);pointer-events:all;}
+.lang-opt{
+  display:flex;align-items:center;gap:0.6rem;
+  padding:0.6rem 0.9rem;cursor:pointer;
+  font-size:0.8rem;transition:background 0.15s;
+  border-bottom:1px solid var(--line);
+}
+.lang-opt:last-child{border-bottom:none;}
+.lang-opt:hover{background:rgba(61,214,255,0.08);}
+.lang-opt.active{color:var(--cyan);}
+.lang-opt .flag{font-size:1rem;}
+
+/* ── TELEMETRY (left, desktop) ── */
+.telemetry{
+  position:fixed;top:50%;left:1.6rem;z-index:100;
+  transform:translateY(-50%);
+  display:flex;flex-direction:column;gap:0;
+  pointer-events:none;
+  border-left:1px solid var(--line2);
+}
+.tele-row{
+  padding:0.7rem 0 0.7rem 0.9rem;
+  position:relative;
+}
+.tele-row::before{
+  content:'';position:absolute;left:-1px;top:50%;transform:translateY(-50%);
+  width:1px;height:0;background:var(--cyan);transition:height 0.4s;
+}
+.tele-row.live::before{height:60%;box-shadow:0 0 8px var(--cyan);}
+.tele-val{font-family:'JetBrains Mono',monospace;font-size:1.35rem;font-weight:500;line-height:1;letter-spacing:-0.02em;}
+.tele-val .u{color:var(--cyan);font-size:0.8rem;}
+.tele-key{font-size:0.58rem;letter-spacing:0.18em;text-transform:uppercase;color:rgba(190,205,230,0.7);margin-top:0.3rem;}
+
+/* status badge top-left under nav */
+.status{
+  position:fixed;top:3.6rem;left:1.6rem;z-index:100;
+  display:flex;align-items:center;gap:0.45rem;
+  font-family:'JetBrains Mono',monospace;
+  font-size:0.62rem;font-weight:500;letter-spacing:0.14em;
+  color:var(--cyan-dim);pointer-events:none;
+}
+.status .pulse{
+  width:6px;height:6px;border-radius:50%;background:var(--green);
+  box-shadow:0 0 8px var(--green);animation:pulse 1.8s infinite;
+}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.25;}}
+
+/* ── TELEMETRY FEED (right) ── */
+.feed{
+  position:fixed;right:1.6rem;top:50%;transform:translateY(-50%);
+  z-index:100;display:flex;flex-direction:column;gap:0.4rem;
+  pointer-events:none;width:240px;
+}
+.feed-title{
+  font-family:'JetBrains Mono',monospace;
+  font-size:0.58rem;letter-spacing:0.16em;text-transform:uppercase;
+  color:rgba(190,205,230,0.6);margin-bottom:0.2rem;text-align:right;
+}
+.feed-item{
+  display:flex;align-items:center;gap:0.5rem;
+  background:var(--panel);border:1px solid var(--line);
+  border-left:2px solid var(--green);
+  border-radius:0 7px 7px 0;
+  padding:0.45rem 0.7rem;font-size:0.66rem;
+  backdrop-filter:blur(10px);
+  font-family:'JetBrains Mono',monospace;
+  animation:feedin 0.4s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes feedin{from{transform:translateX(12px);opacity:0;}to{transform:translateX(0);opacity:1;}}
+.feed-sat{color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.feed-amt{color:var(--cyan);font-weight:500;flex-shrink:0;}
+
+/* hint */
+.hint{
+  position:fixed;bottom:5.5rem;left:50%;transform:translateX(-50%);
+  z-index:100;pointer-events:none;
+  font-family:'JetBrains Mono',monospace;
+  font-size:0.64rem;letter-spacing:0.12em;color:var(--muted2);
+  display:flex;align-items:center;gap:0.5rem;
+}
+.hint .reticle{
+  width:12px;height:12px;border:1px solid var(--cyan-dim);border-radius:50%;
+  position:relative;animation:pulse 2s infinite;
+}
+.hint .reticle::before,.hint .reticle::after{
+  content:'';position:absolute;background:var(--cyan-dim);
+}
+.hint .reticle::before{left:50%;top:-3px;width:1px;height:18px;transform:translateX(-50%);}
+.hint .reticle::after{top:50%;left:-3px;height:1px;width:18px;transform:translateY(-50%);}
+
+/* ── SAT POPUP ── */
+.spop{
+  position:fixed;z-index:300;
+  background:var(--panel);border:1px solid var(--line2);
+  border-radius:12px;padding:0;min-width:228px;
+  backdrop-filter:blur(24px);
+  opacity:0;transform:scale(0.94);transition:opacity 0.22s,transform 0.22s;
+  pointer-events:none;overflow:hidden;
+  box-shadow:0 16px 50px rgba(0,0,0,0.6);
+}
+.spop.show{opacity:1;transform:scale(1);pointer-events:all;}
+.spop-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0.8rem 1rem;border-bottom:1px solid var(--line);
+  background:rgba(61,214,255,0.04);
+}
+.spop-id{font-family:'JetBrains Mono',monospace;font-size:0.62rem;letter-spacing:0.1em;color:var(--cyan);}
+.spop-x{background:none;border:none;color:var(--muted2);cursor:pointer;font-size:0.9rem;line-height:1;padding:0;}
+.spop-x:hover{color:var(--text);}
+.spop-body{padding:0.9rem 1rem;}
+.spop-name{font-size:1rem;font-weight:600;margin-bottom:0.7rem;}
+.spop-row{display:flex;justify-content:space-between;align-items:center;padding:0.32rem 0;font-size:0.74rem;}
+.spop-row .k{color:var(--muted);}
+.spop-row .v{font-family:'JetBrains Mono',monospace;font-weight:500;}
+.spop-row .v.on{color:var(--green);}
+.spop-btn{
+  margin:0.8rem 1rem 1rem;width:calc(100% - 2rem);
+  background:rgba(61,214,255,0.1);border:1px solid var(--cyan-dim);
+  color:var(--cyan);padding:0.6rem;border-radius:7px;
+  font-family:'Space Grotesk',sans-serif;
+  font-size:0.78rem;font-weight:600;cursor:pointer;letter-spacing:0.02em;
+  transition:background 0.2s,border-color 0.2s;
+}
+.spop-btn:hover{background:rgba(61,214,255,0.2);border-color:var(--cyan);}
+
+/* ── BOTTOM TABS ── */
+.tabs{
+  position:fixed;bottom:0;left:0;right:0;z-index:200;
+  display:flex;
+  background:var(--panel);
+  border-top:1px solid var(--line2);
+  backdrop-filter:blur(24px);
+}
+.tab{
+  flex:1;padding:0.85rem 0.5rem;
+  background:none;border:none;
+  color:rgba(195,210,235,0.72);
+  font-family:'JetBrains Mono',monospace;
+  font-size:0.66rem;font-weight:500;
+  letter-spacing:0.1em;text-transform:uppercase;
+  cursor:pointer;position:relative;
+  transition:color 0.2s;
+  display:flex;flex-direction:column;align-items:center;gap:0.35rem;
+}
+.tab::before{
+  content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:0;height:2px;background:var(--cyan);transition:width 0.3s;
+  box-shadow:0 0 8px var(--cyan);
+}
+.tab.active::before{width:50%;}
+.tab.active{color:var(--cyan);}
+.tab:hover:not(.active){color:var(--text);}
+.tab .ti{
+  width:18px;height:18px;opacity:0.9;
+}
+.tab.active .ti{opacity:1;}
+
+/* ── OVERLAY PANEL ── */
+.overlay{
+  position:fixed;left:50%;bottom:62px;
+  transform:translateX(-50%) translateY(16px);
+  width:min(560px,94vw);max-height:64vh;
+  background:var(--panel);
+  border:1px solid var(--line2);
+  border-bottom:none;
+  border-radius:16px 16px 0 0;
+  backdrop-filter:blur(28px);
+  z-index:190;opacity:0;pointer-events:none;
+  transition:opacity 0.32s,transform 0.32s;
+  display:flex;flex-direction:column;
+  box-shadow:0 -8px 60px rgba(0,0,0,0.5);
+}
+.overlay.open{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:all;}
+.ov-grip{width:38px;height:3px;border-radius:2px;background:var(--line2);margin:0.7rem auto 0;flex-shrink:0;}
+.ov-scroll{overflow-y:auto;padding:1.1rem 1.5rem 1.6rem;flex:1;scrollbar-width:thin;scrollbar-color:var(--cyan-dim) transparent;}
+.ov-scroll::-webkit-scrollbar{width:3px;}
+.ov-scroll::-webkit-scrollbar-thumb{background:var(--cyan-dim);border-radius:2px;}
+
+/* content styles */
+.eyebrow{
+  font-family:'JetBrains Mono',monospace;
+  font-size:0.6rem;font-weight:500;letter-spacing:0.2em;
+  color:var(--cyan);text-transform:uppercase;margin-bottom:0.6rem;
+  display:flex;align-items:center;gap:0.5rem;
+}
+.eyebrow::before{content:'';width:18px;height:1px;background:var(--cyan);}
+.h-big{font-size:1.55rem;font-weight:700;line-height:1.12;margin-bottom:0.8rem;letter-spacing:-0.01em;}
+.lead{font-size:0.88rem;color:var(--muted);line-height:1.7;margin-bottom:1.3rem;}
+
+.dl-btn{
+  display:flex;align-items:center;justify-content:center;gap:0.5rem;
+  background:rgba(61,214,255,0.08);border:1px solid var(--cyan-dim);
+  color:var(--cyan);padding:0.8rem;border-radius:9px;
+  font-weight:600;font-size:0.82rem;text-decoration:none;
+  margin-bottom:1.3rem;letter-spacing:0.02em;
+  transition:background 0.2s,border-color 0.2s;
+}
+.dl-btn:hover{background:rgba(61,214,255,0.16);border-color:var(--cyan);}
+
+.card{
+  background:rgba(120,160,220,0.03);
+  border:1px solid var(--line);
+  border-radius:11px;padding:1.1rem;margin-bottom:0.7rem;
+  transition:border-color 0.3s,transform 0.3s;
+  position:relative;overflow:hidden;
+}
+.card::before{
+  content:'';position:absolute;top:0;left:0;width:2px;height:0;
+  background:var(--cyan);transition:height 0.35s;
+}
+.card:hover{border-color:var(--line2);transform:translateX(2px);}
+.card:hover::before{height:100%;}
+.card-h{display:flex;align-items:center;gap:0.6rem;margin-bottom:0.4rem;}
+.card-ico{
+  width:30px;height:30px;border-radius:8px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(61,214,255,0.08);border:1px solid var(--line);
+  font-size:0.95rem;
+}
+.card h3{font-size:0.88rem;font-weight:600;}
+.card p{font-size:0.79rem;color:var(--muted);line-height:1.6;}
+
+/* tokenomics bars */
+.tok-row{display:flex;align-items:center;gap:0.8rem;padding:0.6rem 0;}
+.tok-name{font-size:0.78rem;font-weight:500;width:9.5rem;flex-shrink:0;}
+.tok-track{flex:1;height:4px;background:rgba(120,160,220,0.08);border-radius:2px;overflow:hidden;}
+.tok-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--cyan),var(--violet));width:0;transition:width 0.9s cubic-bezier(0.4,0,0.2,1);}
+.tok-pct{font-family:'JetBrains Mono',monospace;font-size:0.82rem;font-weight:500;color:var(--cyan);width:2.6rem;text-align:right;flex-shrink:0;}
+.tok-sub{font-size:0.68rem;color:var(--muted2);margin:-0.2rem 0 0.5rem 0;}
+
+/* roadmap */
+.rm{position:relative;padding-left:1.7rem;}
+.rm::before{content:'';position:absolute;left:0;top:0.3rem;bottom:0.3rem;width:1px;background:linear-gradient(to bottom,var(--cyan),var(--violet) 55%,var(--line2));}
+.rm-item{position:relative;margin-bottom:1.5rem;}
+.rm-item:last-child{margin-bottom:0;}
+.rm-node{position:absolute;left:-1.7rem;top:0.2rem;width:9px;height:9px;border-radius:50%;transform:translateX(-4px);}
+.rm-done .rm-node{background:var(--cyan);box-shadow:0 0 8px var(--cyan);}
+.rm-now .rm-node{background:var(--amber);box-shadow:0 0 10px var(--amber);}
+.rm-now .rm-node::after{content:'';position:absolute;inset:-5px;border:1px solid var(--amber);border-radius:50%;animation:pulse 1.6s infinite;}
+.rm-next .rm-node{background:var(--muted2);}
+.rm-phase{font-family:'JetBrains Mono',monospace;font-size:0.6rem;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.2rem;}
+.rm-done .rm-phase{color:var(--cyan);}
+.rm-now .rm-phase{color:var(--amber);}
+.rm-next .rm-phase{color:var(--muted2);}
+.rm-item h4{font-size:0.86rem;font-weight:600;margin-bottom:0.22rem;}
+.rm-item p{font-size:0.76rem;color:var(--muted);line-height:1.55;}
+
+/* app / wallet */
+.w-btn{
+  width:100%;display:flex;align-items:center;justify-content:center;gap:0.5rem;
+  background:rgba(61,214,255,0.1);border:1px solid var(--cyan-dim);
+  color:var(--cyan);padding:0.85rem;border-radius:9px;
+  font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:0.85rem;
+  cursor:pointer;letter-spacing:0.02em;margin-bottom:1rem;
+  transition:background 0.2s,border-color 0.2s;
+}
+.w-btn:hover{background:rgba(61,214,255,0.18);border-color:var(--cyan);}
+.field-label{
+  font-family:'JetBrains Mono',monospace;
+  font-size:0.62rem;color:var(--muted2);letter-spacing:0.08em;
+  display:block;margin-bottom:0.35rem;text-transform:uppercase;
+}
+.field{
+  width:100%;background:rgba(120,160,220,0.04);
+  border:1px solid var(--line2);color:var(--text);
+  padding:0.7rem 0.85rem;border-radius:8px;
+  font-family:'JetBrains Mono',monospace;font-size:0.8rem;
+  outline:none;transition:border-color 0.2s;margin-bottom:0.9rem;
+}
+.field:focus{border-color:var(--cyan-dim);}
+.field::placeholder{color:var(--muted2);}
+.mint{
+  width:100%;background:var(--cyan);color:var(--void);
+  border:none;padding:0.9rem;border-radius:9px;
+  font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:0.88rem;
+  cursor:pointer;letter-spacing:0.03em;margin-bottom:0.8rem;
+  transition:transform 0.2s,box-shadow 0.2s;
+}
+.mint:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(61,214,255,0.3);}
+.note{font-family:'JetBrains Mono',monospace;font-size:0.66rem;color:var(--muted2);text-align:center;line-height:1.7;}
+.note a{color:var(--cyan);text-decoration:none;}
+
+/* HERO TITLE (center, behind globe interaction) */
+.hero{
+  position:fixed;top:46%;left:50%;transform:translate(-50%,-50%);
+  z-index:50;text-align:center;pointer-events:none;width:min(680px,90vw);
+}
+.hero-kicker{
+  font-family:'JetBrains Mono',monospace;
+  font-size:0.66rem;letter-spacing:0.28em;text-transform:uppercase;
+  color:var(--cyan-dim);margin-bottom:1rem;
+}
+.hero h1{
+  font-size:clamp(2.4rem,5.5vw,4.6rem);font-weight:700;line-height:1.0;
+  letter-spacing:-0.03em;text-shadow:0 2px 40px rgba(4,6,13,0.8);
+}
+.hero h1 .accent{color:var(--cyan);}
+.hero h1 .ghost{color:var(--muted2);}
+
+@media(max-width:760px){
+  .telemetry{
+    top:auto;bottom:4.6rem;left:0;right:0;transform:none;
+    flex-direction:row;justify-content:space-around;
+    border-left:none;border-top:1px solid var(--line2);
+    background:var(--panel);backdrop-filter:blur(20px);padding:0.6rem 0.6rem;
+  }
+  .tele-row{padding:0.3rem 0;text-align:center;flex:1;border-top:1px solid var(--line);}
+  .tele-row::before{display:none;}
+  .tele-val{font-size:1rem;}
+  .tele-key{font-size:0.5rem;letter-spacing:0.1em;}
+  .status{top:3.3rem;left:1.2rem;font-size:0.56rem;}
+  .feed{display:none;}
+  .hint{display:none;}
+  .hero{top:34%;}
+  .spop{left:1rem!important;right:1rem!important;bottom:13rem!important;top:auto!important;min-width:unset;width:auto;}
+  .overlay{max-height:56vh;}
+  .tab{font-size:0.58rem;padding:0.7rem 0.3rem;}
+  nav{padding:0.9rem 1.1rem;}
+  .brand-name{font-size:1rem;}
+  .overlay{bottom:58px;}
+}
+</style>
+</head>
+<body>
+<canvas id="globe"></canvas>
+<div class="scan"></div>
+<div class="vignette"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="brand">
+    <div class="brand-mark"></div>
+    <div class="brand-name">SP<b>AI</b></div>
+  </div>
+  <div class="nav-right">
+    <div class="lang-wrap">
+      <button class="lang-trigger" onclick="toggleLangMenu(event)">
+        <span class="flag" id="curFlag">🇬🇧</span>
+        <span id="curLang">EN</span>
+        <span class="chev">▼</span>
+      </button>
+      <div class="lang-menu" id="langMenu">
+        <div class="lang-opt active" onclick="setLang('en')"><span class="flag">🇬🇧</span> English</div>
+        <div class="lang-opt" onclick="setLang('ko')"><span class="flag">🇰🇷</span> 한국어</div>
+        <div class="lang-opt" onclick="setLang('zh')"><span class="flag">🇨🇳</span> 中文</div>
+        <div class="lang-opt" onclick="setLang('ja')"><span class="flag">🇯🇵</span> 日本語</div>
+        <div class="lang-opt" onclick="setLang('es')"><span class="flag">🇪🇸</span> Español</div>
+        <div class="lang-opt" onclick="setLang('ru')"><span class="flag">🇷🇺</span> Русский</div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- STATUS -->
+<div class="status"><span class="pulse"></span><span id="statusTxt">ALEO TESTNET · OPERATIONAL</span></div>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-kicker" id="heroKicker">SATELLITE DATA SETTLEMENT</div>
+  <h1 id="heroTitle"><span class="accent">Orbit</span> the<br>data economy</h1>
+</div>
+
+<!-- TELEMETRY LEFT -->
+<div class="telemetry">
+  <div class="tele-row live"><div class="tele-val">7</div><div class="tele-key" id="t1">Active Satellites</div></div>
+  <div class="tele-row live"><div class="tele-val mono"><span id="txCount">0</span></div><div class="tele-key" id="t2">Settlements</div></div>
+  <div class="tele-row"><div class="tele-val mono">1<span class="u">B</span></div><div class="tele-key" id="t3">Max Supply</div></div>
+  <div class="tele-row"><div class="tele-val mono">0<span class="u">%</span></div><div class="tele-key" id="t4">Inflation</div></div>
+</div>
+
+<!-- FEED RIGHT -->
+<div class="feed">
+  <div class="feed-title" id="feedTitle">▸ LIVE SETTLEMENTS</div>
+  <div id="feedList"></div>
+</div>
+
+<!-- HINT -->
+<div class="hint"><span class="reticle"></span><span id="hintTxt">Select a satellite</span></div>
+
+<!-- SAT POPUP -->
+<div class="spop" id="spop">
+  <div class="spop-head">
+    <span class="spop-id" id="spopId">SAT-000</span>
+    <button class="spop-x" onclick="closeSat()">✕</button>
+  </div>
+  <div class="spop-body">
+    <div class="spop-name" id="spopName">—</div>
+    <div class="spop-row"><span class="k" id="sl1">Altitude</span><span class="v" id="spAlt">—</span></div>
+    <div class="spop-row"><span class="k" id="sl2">Payload</span><span class="v" id="spType">—</span></div>
+    <div class="spop-row"><span class="k" id="sl3">Rate</span><span class="v" id="spPrice">—</span></div>
+    <div class="spop-row"><span class="k" id="sl4">Status</span><span class="v on" id="spStat">● LIVE</span></div>
+  </div>
+  <button class="spop-btn" id="spopBtn" onclick="simPay()">Settle with SPAI →</button>
+</div>
+
+<!-- OVERLAY -->
+<div class="overlay" id="ovl">
+  <div class="ov-grip"></div>
+  <div class="ov-scroll" id="ovlContent"></div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <button class="tab" onclick="openTab('tech',this)">
+    <svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg>
+    <span id="tab1">System</span>
+  </button>
+  <button class="tab" onclick="openTab('tok',this)">
+    <svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/></svg>
+    <span id="tab2">Supply</span>
+  </button>
+  <button class="tab" onclick="openTab('road',this)">
+    <svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="19" r="2"/><path d="M12 7v10"/></svg>
+    <span id="tab3">Roadmap</span>
+  </button>
+  <button class="tab" onclick="openTab('app',this)">
+    <svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4.5 16.5L3 22l5.5-1.5M14 6l4 4M8.5 20.5C7 19 5 17 3.5 15.5c2-6 6-10 14-12-2 8-6 12-12 14z"/></svg>
+    <span id="tab4">Claim</span>
+  </button>
+</div>
+
+<!-- Puzzle Wallet (Aleo) SDK — loaded as an ES module from CDN; no build step needed.
+     If esm.sh is ever blocked, swap the URL for: https://cdn.jsdelivr.net/npm/@puzzlehq/sdk-core/+esm -->
+<script type="module">
+  import('https://esm.sh/@puzzlehq/sdk-core').then(sdk=>{
+    window.PuzzleSDK={
+      connect:sdk.connect,
+      disconnect:sdk.disconnect,
+      getAccount:sdk.getAccount,
+      requestCreateEvent:sdk.requestCreateEvent,
+      EventType:sdk.EventType,
+      Network:sdk.Network
+    };
+  }).catch(e=>{
+    console.error('Puzzle SDK load failed:',e);
+  }).finally(()=>{
+    window.__puzzleReady=true;
+    window.dispatchEvent(new Event('puzzle-ready'));
+  });
+</script>
+
+<script>
+// ════════════ TRANSLATIONS (6 languages) ════════════
+const I18N={
+  en:{flag:'🇬🇧',code:'EN',
+    status:'ALEO TESTNET · OPERATIONAL',
+    heroKicker:'SATELLITE DATA SETTLEMENT',
+    heroTitle:'<span class="accent">Orbit</span> the<br>data economy',
+    t1:'Active Satellites',t2:'Settlements',t3:'Max Supply',t4:'Inflation',
+    feedTitle:'▸ LIVE SETTLEMENTS',hint:'Select a satellite',
+    sl1:'Altitude',sl2:'Payload',sl3:'Rate',sl4:'Status',spStat:'● LIVE',spopBtn:'Settle with SPAI →',
+    tab1:'System',tab2:'Supply',tab3:'Roadmap',tab4:'Claim',
+    tech:{eyebrow:'System Architecture',h:'Space data,<br>settled on-chain.',lead:'SPAI is a zero-knowledge settlement layer for satellite data. Built on Aleo, it verifies AI computation without exposing the underlying feeds.',dl:'Download Whitepaper',
+      cards:[['🛰️','Data Settlement Layer','Agriculture, logistics and insurance subscribe to orbital data feeds and settle in SPAI. Real revenue enters the protocol.'],
+      ['🔐','Zero-Knowledge Privacy','Aleo proofs verify AI computation on-chain without revealing raw inputs. Enterprise data stays confidential.'],
+      ['🔥','Buyback & Burn','40% of protocol revenue automatically repurchases SPAI and burns it. Supply contracts as usage grows.'],
+      ['⚡','Zero Inflation','Hard cap of 1 billion. Staking rewards are paid from fee revenue — never from new issuance.']]},
+    tok:{eyebrow:'Token Supply',h:'Transparent<br>allocation.',lead:'1,000,000,000 SPAI fixed supply. 72% circulating at launch. Team allocation locked for a minimum of 12 months.',
+      rows:[['Public & Liquidity',35,'Unlocked at TGE'],['Ecosystem',20,'DAO governed'],['Community',17,'Staking rewards'],['Team',12,'12mo cliff · 36mo vest'],['Investors',8,'6mo cliff · 24mo vest'],['Foundation',8,'24mo cliff']]},
+    road:{eyebrow:'Mission Timeline',h:'Built in<br>phases.',lead:'Verifiable milestones, recorded on-chain.',
+      items:[['done','Phase 0 · Complete','Protocol Foundation','Leo smart contracts. Mint and transfer logic. Admin authority. Deployed to Aleo testnet.'],
+      ['now','Phase 1 · Active','Testnet & Community','Web console live. Community formation. First data-partner MOU. Security audit underway.'],
+      ['next','Phase 2 · Q4 2026','TGE & Mainnet','Token generation event. DEX liquidity. First buyback-burn. Enterprise API beta.'],
+      ['next','Phase 3 · 2027+','Global Coverage','Agriculture, maritime and disaster verticals. DAO governance. L2 rollup. $5M ARR target.']]},
+    app:{eyebrow:'Testnet Console',h:'Claim SPAI<br>tokens.',lead:'Connect your Puzzle Wallet to receive SPAI on testnet.',
+      connect:'Connect Puzzle Wallet',connecting:'Connecting…',connected:'Connected',
+      addrLabel:'Aleo Wallet Address',addrPlaceholder:'Connect wallet or paste aleo1…',
+      amtLabel:'Amount (max 1,000)',claim:'Claim SPAI →',
+      note:'Testnet live · Mainnet 2026',contract:'View contract →',
+      mobileConnect:'How to connect on mobile',mobTitle:'Connect on Mobile',mobStep1:'Open the Puzzle Wallet app',mobStep2:'Tap the Browser / dApps tab at the bottom',mobStep3:'Paste this address into the browser bar:',mobCopy:'Copy site address',mobCopied:'Copied!',mobNote:'The wallet connects automatically inside the app browser.',
+      confirmTitle:'Confirm in Puzzle Wallet…',confirmSub:'Check your wallet popup',
+      sentTitle:'Transaction Sent',sentSub:'minting to your wallet',done:'Done',
+      manualTitle:'Manual Mint (PowerShell)',manualSub:'Or connect Puzzle Wallet for 1-click mint',back:'Back',
+      noWallet:'Puzzle Wallet not found. Install the extension from puzzle.online, or open this page inside the Puzzle Wallet mobile app.',
+      badAddr:'Connect a wallet or enter a valid Aleo address.',
+      failConnect:'Connection failed. Unlock Puzzle Wallet and try again.'}},
+
+  ko:{flag:'🇰🇷',code:'KO',
+    status:'알레오 테스트넷 · 가동 중',
+    heroKicker:'위성 데이터 결제 프로토콜',
+    heroTitle:'데이터 경제를<br><span class="accent">공전</span>하다',
+    t1:'활성 위성',t2:'결제 건수',t3:'최대 발행량',t4:'인플레이션',
+    feedTitle:'▸ 실시간 결제',hint:'위성을 선택하세요',
+    sl1:'고도',sl2:'페이로드',sl3:'단가',sl4:'상태',spStat:'● 가동',spopBtn:'SPAI로 결제 →',
+    tab1:'시스템',tab2:'발행량',tab3:'로드맵',tab4:'받기',
+    tech:{eyebrow:'시스템 구조',h:'우주 데이터,<br>온체인 결제.',lead:'SPAI는 위성 데이터를 위한 영지식 결제 레이어입니다. Aleo 기반으로 원시 데이터 노출 없이 AI 연산을 검증합니다.',dl:'백서 다운로드',
+      cards:[['🛰️','데이터 결제 레이어','농업·물류·보험사가 위성 데이터를 구독하고 SPAI로 결제합니다. 실제 매출이 프로토콜로 유입됩니다.'],
+      ['🔐','영지식 프라이버시','Aleo 증명으로 원시 데이터 공개 없이 AI 연산을 온체인 검증. 기업 데이터는 비공개로 유지됩니다.'],
+      ['🔥','바이백 & 소각','프로토콜 매출의 40%가 자동으로 SPAI를 매입·소각합니다. 사용량이 늘면 공급이 줄어듭니다.'],
+      ['⚡','제로 인플레이션','10억개 하드캡. 스테이킹 보상은 신규 발행이 아닌 수수료 수익으로만 지급됩니다.']]},
+    tok:{eyebrow:'토큰 발행',h:'투명한<br>분배 구조.',lead:'총 발행량 10억 SPAI 고정. 출시 시점 72% 유통. 팀 물량은 최소 12개월 락업.',
+      rows:[['퍼블릭 & 유동성',35,'TGE 즉시 유통'],['에코시스템',20,'DAO 관리'],['커뮤니티',17,'스테이킹 보상'],['팀',12,'12개월 클리프 · 36개월'],['투자자',8,'6개월 클리프 · 24개월'],['재단',8,'24개월 클리프']]},
+    road:{eyebrow:'미션 타임라인',h:'단계별로<br>구축합니다.',lead:'검증 가능한 마일스톤, 온체인 기록.',
+      items:[['done','Phase 0 · 완료','프로토콜 기반','Leo 스마트컨트랙트. mint·transfer 구현. 관리자 권한. Aleo 테스트넷 배포.'],
+      ['now','Phase 1 · 진행 중','테스트넷 & 커뮤니티','웹 콘솔 가동. 커뮤니티 형성. 첫 데이터 파트너 MOU. 보안 감사 진행.'],
+      ['next','Phase 2 · 2026 Q4','TGE & 메인넷','토큰 생성 이벤트. DEX 유동성. 첫 바이백-소각. 엔터프라이즈 API 베타.'],
+      ['next','Phase 3 · 2027+','글로벌 확장','농업·해운·재난 버티컬. DAO 거버넌스. L2 롤업. ARR $5M 목표.']]},
+    app:{eyebrow:'테스트넷 콘솔',h:'SPAI 토큰<br>받기.',lead:'Puzzle Wallet을 연결하고 테스트넷 SPAI를 받으세요.',
+      connect:'Puzzle Wallet 연결',connecting:'연결 중…',connected:'연결됨',
+      addrLabel:'알레오 지갑 주소',addrPlaceholder:'지갑 연결 또는 aleo1… 입력',
+      amtLabel:'수량 (최대 1,000)',claim:'SPAI 받기 →',
+      note:'테스트넷 운영 중 · 메인넷 2026',contract:'컨트랙트 보기 →',
+      mobileConnect:'모바일 연결 방법',mobTitle:'모바일에서 연결',mobStep1:'Puzzle Wallet 앱을 여세요',mobStep2:'하단의 브라우저(Browser)/dApps 탭을 누르세요',mobStep3:'브라우저 주소창에 이 주소를 붙여넣으세요:',mobCopy:'사이트 주소 복사',mobCopied:'복사됨!',mobNote:'앱 내 브라우저에서 지갑이 자동으로 연결됩니다.',
+      confirmTitle:'Puzzle Wallet에서 승인하세요…',confirmSub:'지갑 팝업을 확인하세요',
+      sentTitle:'트랜잭션 전송됨',sentSub:'지갑으로 발행 중',done:'완료',
+      manualTitle:'수동 발행 (PowerShell)',manualSub:'또는 Puzzle Wallet 연결 시 원클릭 발행',back:'돌아가기',
+      noWallet:'Puzzle Wallet을 찾을 수 없습니다. puzzle.online에서 확장프로그램을 설치하거나, Puzzle Wallet 모바일 앱 안에서 이 페이지를 여세요.',
+      badAddr:'지갑을 연결하거나 올바른 Aleo 주소를 입력하세요.',
+      failConnect:'연결 실패. Puzzle Wallet 잠금을 해제하고 다시 시도하세요.'}},
+
+  zh:{flag:'🇨🇳',code:'中文',
+    status:'ALEO 测试网 · 运行中',
+    heroKicker:'卫星数据结算协议',
+    heroTitle:'<span class="accent">环绕</span><br>数据经济',
+    t1:'活跃卫星',t2:'结算笔数',t3:'最大供应量',t4:'通胀率',
+    feedTitle:'▸ 实时结算',hint:'选择一颗卫星',
+    sl1:'高度',sl2:'载荷',sl3:'费率',sl4:'状态',spStat:'● 在线',spopBtn:'用 SPAI 结算 →',
+    tab1:'系统',tab2:'供应',tab3:'路线图',tab4:'领取',
+    tech:{eyebrow:'系统架构',h:'空间数据，<br>链上结算。',lead:'SPAI 是面向卫星数据的零知识结算层。基于 Aleo 构建，在不暴露原始数据的前提下验证 AI 计算。',dl:'下载白皮书',
+      cards:[['🛰️','数据结算层','农业、物流和保险公司订阅轨道数据并以 SPAI 结算。真实收入进入协议。'],
+      ['🔐','零知识隐私','Aleo 证明在不泄露原始输入的情况下链上验证 AI 计算。企业数据保持机密。'],
+      ['🔥','回购与销毁','协议收入的 40% 自动回购并销毁 SPAI。随着使用增长，供应量收缩。'],
+      ['⚡','零通胀','10 亿枚硬顶。质押奖励来自手续费收入，而非新增发行。']]},
+    tok:{eyebrow:'代币供应',h:'透明的<br>分配。',lead:'10 亿 SPAI 固定供应。上线时 72% 流通。团队份额至少锁仓 12 个月。',
+      rows:[['公售与流动性',35,'TGE 解锁'],['生态系统',20,'DAO 治理'],['社区',17,'质押奖励'],['团队',12,'12个月悬崖 · 36个月'],['投资者',8,'6个月悬崖 · 24个月'],['基金会',8,'24个月悬崖']]},
+    road:{eyebrow:'任务时间线',h:'分阶段<br>构建。',lead:'可验证的里程碑，链上记录。',
+      items:[['done','阶段 0 · 完成','协议基础','Leo 智能合约。铸造与转账逻辑。管理员权限。已部署至 Aleo 测试网。'],
+      ['now','阶段 1 · 进行中','测试网与社区','网页控制台上线。社区组建。首个数据合作伙伴 MOU。安全审计进行中。'],
+      ['next','阶段 2 · 2026 Q4','TGE 与主网','代币生成事件。DEX 流动性。首次回购销毁。企业 API 测试版。'],
+      ['next','阶段 3 · 2027+','全球覆盖','农业、海运与灾害领域。DAO 治理。L2 Rollup。500 万美元 ARR 目标。']]},
+    app:{eyebrow:'测试网控制台',h:'领取 SPAI<br>代币。',lead:'连接您的 Puzzle Wallet 以在测试网接收 SPAI。',
+      connect:'连接 Puzzle Wallet',connecting:'连接中…',connected:'已连接',
+      addrLabel:'Aleo 钱包地址',addrPlaceholder:'连接钱包或粘贴 aleo1…',
+      amtLabel:'数量（最多 1,000）',claim:'领取 SPAI →',
+      note:'测试网运行中 · 主网 2026',contract:'查看合约 →',
+      mobileConnect:'移动端连接方法',mobTitle:'在移动端连接',mobStep1:'打开 Puzzle Wallet 应用',mobStep2:'点击底部的浏览器（Browser）/dApps 标签',mobStep3:'将此地址粘贴到浏览器地址栏：',mobCopy:'复制网站地址',mobCopied:'已复制！',mobNote:'钱包将在应用内浏览器中自动连接。',
+      confirmTitle:'在 Puzzle Wallet 中确认…',confirmSub:'请查看钱包弹窗',
+      sentTitle:'交易已发送',sentSub:'正在铸造到您的钱包',done:'完成',
+      manualTitle:'手动铸造 (PowerShell)',manualSub:'或连接 Puzzle Wallet 一键铸造',back:'返回',
+      noWallet:'未找到 Puzzle Wallet。请从 puzzle.online 安装扩展，或在 Puzzle Wallet 移动应用中打开此页面。',
+      badAddr:'请连接钱包或输入有效的 Aleo 地址。',
+      failConnect:'连接失败。请解锁 Puzzle Wallet 后重试。'}},
+
+  ja:{flag:'🇯🇵',code:'日本語',
+    status:'ALEO テストネット · 稼働中',
+    heroKicker:'衛星データ決済プロトコル',
+    heroTitle:'データ経済を<br><span class="accent">周回</span>する',
+    t1:'稼働中の衛星',t2:'決済件数',t3:'最大供給量',t4:'インフレ率',
+    feedTitle:'▸ リアルタイム決済',hint:'衛星を選択',
+    sl1:'高度',sl2:'ペイロード',sl3:'レート',sl4:'状態',spStat:'● 稼働',spopBtn:'SPAI で決済 →',
+    tab1:'システム',tab2:'供給',tab3:'ロードマップ',tab4:'受取',
+    tech:{eyebrow:'システム構成',h:'宇宙データを<br>オンチェーン決済。',lead:'SPAI は衛星データのためのゼロ知識決済レイヤーです。Aleo 上に構築され、生データを公開せずに AI 計算を検証します。',dl:'ホワイトペーパー',
+      cards:[['🛰️','データ決済レイヤー','農業・物流・保険会社が軌道データを購読し SPAI で決済。実収益がプロトコルに流入します。'],
+      ['🔐','ゼロ知識プライバシー','Aleo 証明により生入力を公開せずに AI 計算をオンチェーン検証。企業データは機密に保たれます。'],
+      ['🔥','バイバック & バーン','プロトコル収益の 40% が自動的に SPAI を買い戻し焼却。利用増加とともに供給が減少します。'],
+      ['⚡','ゼロインフレ','10 億枚のハードキャップ。ステーキング報酬は新規発行ではなく手数料収入から支払われます。']]},
+    tok:{eyebrow:'トークン供給',h:'透明な<br>配分。',lead:'総供給量 10 億 SPAI 固定。ローンチ時 72% 流通。チーム配分は最低 12 ヶ月ロック。',
+      rows:[['公開販売・流動性',35,'TGE 時解除'],['エコシステム',20,'DAO 管理'],['コミュニティ',17,'ステーキング報酬'],['チーム',12,'12ヶ月クリフ · 36ヶ月'],['投資家',8,'6ヶ月クリフ · 24ヶ月'],['財団',8,'24ヶ月クリフ']]},
+    road:{eyebrow:'ミッション工程',h:'段階的に<br>構築。',lead:'検証可能なマイルストーン、オンチェーン記録。',
+      items:[['done','フェーズ 0 · 完了','プロトコル基盤','Leo スマートコントラクト。ミント・転送ロジック。管理者権限。Aleo テストネットに展開。'],
+      ['now','フェーズ 1 · 進行中','テストネット & コミュニティ','ウェブコンソール稼働。コミュニティ形成。初のデータパートナー MOU。セキュリティ監査中。'],
+      ['next','フェーズ 2 · 2026 Q4','TGE & メインネット','トークン生成イベント。DEX 流動性。初のバイバックバーン。エンタープライズ API ベータ。'],
+      ['next','フェーズ 3 · 2027+','グローバル展開','農業・海運・防災分野。DAO ガバナンス。L2 ロールアップ。ARR 500 万ドル目標。']]},
+    app:{eyebrow:'テストネットコンソール',h:'SPAI トークン<br>受取。',lead:'Puzzle Wallet を接続してテストネットで SPAI を受け取ります。',
+      connect:'Puzzle Wallet 接続',connecting:'接続中…',connected:'接続済み',
+      addrLabel:'Aleo ウォレットアドレス',addrPlaceholder:'ウォレット接続または aleo1… 入力',
+      amtLabel:'数量（最大 1,000）',claim:'SPAI 受取 →',
+      note:'テストネット稼働中 · メインネット 2026',contract:'コントラクト表示 →',
+      mobileConnect:'モバイルでの接続方法',mobTitle:'モバイルで接続',mobStep1:'Puzzle Wallet アプリを開く',mobStep2:'下部のブラウザ（Browser）/dApps タブをタップ',mobStep3:'このアドレスをブラウザのアドレスバーに貼り付け：',mobCopy:'サイトアドレスをコピー',mobCopied:'コピーしました！',mobNote:'アプリ内ブラウザでウォレットが自動的に接続されます。',
+      confirmTitle:'Puzzle Wallet で承認…',confirmSub:'ウォレットのポップアップを確認',
+      sentTitle:'トランザクション送信',sentSub:'ウォレットに発行中',done:'完了',
+      manualTitle:'手動ミント (PowerShell)',manualSub:'または Puzzle Wallet 接続でワンクリックミント',back:'戻る',
+      noWallet:'Puzzle Wallet が見つかりません。puzzle.online から拡張機能をインストールするか、Puzzle Wallet モバイルアプリ内でこのページを開いてください。',
+      badAddr:'ウォレットを接続するか、有効な Aleo アドレスを入力してください。',
+      failConnect:'接続失敗。Puzzle Wallet のロックを解除して再試行してください。'}},
+
+  es:{flag:'🇪🇸',code:'ES',
+    status:'ALEO TESTNET · OPERATIVO',
+    heroKicker:'PROTOCOLO DE LIQUIDACIÓN DE DATOS SATELITALES',
+    heroTitle:'<span class="accent">Orbita</span> la<br>economía de datos',
+    t1:'Satélites Activos',t2:'Liquidaciones',t3:'Suministro Máx.',t4:'Inflación',
+    feedTitle:'▸ LIQUIDACIONES EN VIVO',hint:'Selecciona un satélite',
+    sl1:'Altitud',sl2:'Carga',sl3:'Tarifa',sl4:'Estado',spStat:'● ACTIVO',spopBtn:'Liquidar con SPAI →',
+    tab1:'Sistema',tab2:'Suministro',tab3:'Hoja de ruta',tab4:'Reclamar',
+    tech:{eyebrow:'Arquitectura del Sistema',h:'Datos espaciales,<br>liquidados on-chain.',lead:'SPAI es una capa de liquidación de conocimiento cero para datos satelitales. Construida sobre Aleo, verifica el cómputo de IA sin exponer los datos originales.',dl:'Descargar Whitepaper',
+      cards:[['🛰️','Capa de Liquidación','Agricultura, logística y seguros se suscriben a datos orbitales y liquidan en SPAI. Ingresos reales entran al protocolo.'],
+      ['🔐','Privacidad ZK','Las pruebas de Aleo verifican el cómputo de IA on-chain sin revelar las entradas. Los datos empresariales permanecen confidenciales.'],
+      ['🔥','Recompra y Quema','El 40% de los ingresos recompra y quema SPAI automáticamente. El suministro se contrae con el uso.'],
+      ['⚡','Cero Inflación','Tope fijo de mil millones. Las recompensas de staking provienen de comisiones, nunca de nueva emisión.']]},
+    tok:{eyebrow:'Suministro de Token',h:'Distribución<br>transparente.',lead:'1.000.000.000 SPAI de suministro fijo. 72% en circulación al lanzar. Asignación del equipo bloqueada mínimo 12 meses.',
+      rows:[['Venta y Liquidez',35,'Desbloqueado en TGE'],['Ecosistema',20,'Gobernado por DAO'],['Comunidad',17,'Recompensas staking'],['Equipo',12,'12m cliff · 36m vest'],['Inversores',8,'6m cliff · 24m vest'],['Fundación',8,'24m cliff']]},
+    road:{eyebrow:'Cronograma',h:'Construido<br>por fases.',lead:'Hitos verificables, registrados on-chain.',
+      items:[['done','Fase 0 · Completa','Base del Protocolo','Contratos Leo. Lógica de acuñación y transferencia. Autoridad admin. Desplegado en testnet de Aleo.'],
+      ['now','Fase 1 · Activa','Testnet y Comunidad','Consola web activa. Formación de comunidad. Primer MOU con socio de datos. Auditoría en curso.'],
+      ['next','Fase 2 · Q4 2026','TGE y Mainnet','Evento de generación. Liquidez DEX. Primera recompra-quema. API empresarial beta.'],
+      ['next','Fase 3 · 2027+','Cobertura Global','Verticales de agricultura, marítimo y desastres. Gobernanza DAO. Rollup L2. Meta $5M ARR.']]},
+    app:{eyebrow:'Consola Testnet',h:'Reclama tokens<br>SPAI.',lead:'Conecta tu Puzzle Wallet para recibir SPAI en testnet.',
+      connect:'Conectar Puzzle Wallet',connecting:'Conectando…',connected:'Conectado',
+      addrLabel:'Dirección Aleo',addrPlaceholder:'Conecta wallet o pega aleo1…',
+      amtLabel:'Cantidad (máx. 1.000)',claim:'Reclamar SPAI →',
+      note:'Testnet activa · Mainnet 2026',contract:'Ver contrato →',
+      mobileConnect:'Cómo conectar en móvil',mobTitle:'Conectar en Móvil',mobStep1:'Abre la app Puzzle Wallet',mobStep2:'Toca la pestaña Navegador (Browser) / dApps abajo',mobStep3:'Pega esta dirección en la barra del navegador:',mobCopy:'Copiar dirección del sitio',mobCopied:'¡Copiado!',mobNote:'La wallet se conecta automáticamente en el navegador de la app.',
+      confirmTitle:'Confirma en Puzzle Wallet…',confirmSub:'Revisa el popup de tu wallet',
+      sentTitle:'Transacción Enviada',sentSub:'acuñando a tu wallet',done:'Listo',
+      manualTitle:'Acuñación Manual (PowerShell)',manualSub:'O conecta Puzzle Wallet para acuñar en 1 clic',back:'Atrás',
+      noWallet:'Puzzle Wallet no encontrada. Instala la extensión desde puzzle.online, o abre esta página dentro de la app móvil de Puzzle Wallet.',
+      badAddr:'Conecta una wallet o ingresa una dirección Aleo válida.',
+      failConnect:'Conexión fallida. Desbloquea Puzzle Wallet e intenta de nuevo.'}},
+
+  ru:{flag:'🇷🇺',code:'RU',
+    status:'ALEO TESTNET · РАБОТАЕТ',
+    heroKicker:'ПРОТОКОЛ РАСЧЁТОВ СПУТНИКОВЫХ ДАННЫХ',
+    heroTitle:'<span class="accent">Орбита</span><br>экономики данных',
+    t1:'Активные спутники',t2:'Расчёты',t3:'Макс. эмиссия',t4:'Инфляция',
+    feedTitle:'▸ РАСЧЁТЫ В ЭФИРЕ',hint:'Выберите спутник',
+    sl1:'Высота',sl2:'Нагрузка',sl3:'Тариф',sl4:'Статус',spStat:'● АКТИВЕН',spopBtn:'Оплатить SPAI →',
+    tab1:'Система',tab2:'Эмиссия',tab3:'Дорожная карта',tab4:'Получить',
+    tech:{eyebrow:'Архитектура системы',h:'Космические данные,<br>расчёт в сети.',lead:'SPAI — это уровень расчётов с нулевым разглашением для спутниковых данных. Построен на Aleo, проверяет ИИ-вычисления без раскрытия исходных данных.',dl:'Скачать Whitepaper',
+      cards:[['🛰️','Уровень расчётов','Сельское хозяйство, логистика и страхование подписываются на орбитальные данные и платят в SPAI. Реальный доход поступает в протокол.'],
+      ['🔐','ZK-конфиденциальность','Доказательства Aleo проверяют ИИ-вычисления в сети без раскрытия входных данных. Корпоративные данные остаются конфиденциальными.'],
+      ['🔥','Выкуп и сжигание','40% дохода протокола автоматически выкупает и сжигает SPAI. Предложение сокращается с ростом использования.'],
+      ['⚡','Нулевая инфляция','Жёсткий лимит 1 млрд. Награды за стейкинг выплачиваются из комиссий, а не из новой эмиссии.']]},
+    tok:{eyebrow:'Эмиссия токена',h:'Прозрачное<br>распределение.',lead:'Фиксированная эмиссия 1 000 000 000 SPAI. 72% в обращении на старте. Доля команды заблокирована минимум на 12 месяцев.',
+      rows:[['Продажа и ликвидность',35,'Разблокировка на TGE'],['Экосистема',20,'Управление DAO'],['Сообщество',17,'Награды стейкинга'],['Команда',12,'12м клифф · 36м вестинг'],['Инвесторы',8,'6м клифф · 24м вестинг'],['Фонд',8,'24м клифф']]},
+    road:{eyebrow:'График миссии',h:'Поэтапное<br>развитие.',lead:'Проверяемые вехи, записанные в сети.',
+      items:[['done','Фаза 0 · Завершена','Основа протокола','Смарт-контракты Leo. Логика выпуска и перевода. Права администратора. Развёрнуто в тестнете Aleo.'],
+      ['now','Фаза 1 · Активна','Тестнет и сообщество','Веб-консоль запущена. Формирование сообщества. Первый MOU с партнёром данных. Идёт аудит.'],
+      ['next','Фаза 2 · Q4 2026','TGE и Mainnet','Событие генерации токенов. Ликвидность DEX. Первый выкуп-сжигание. Бета корпоративного API.'],
+      ['next','Фаза 3 · 2027+','Глобальный охват','Вертикали сельского хозяйства, морских перевозок и ЧС. Управление DAO. L2-роллап. Цель $5M ARR.']]},
+    app:{eyebrow:'Консоль тестнета',h:'Получить токены<br>SPAI.',lead:'Подключите Puzzle Wallet, чтобы получить SPAI в тестнете.',
+      connect:'Подключить Puzzle Wallet',connecting:'Подключение…',connected:'Подключено',
+      addrLabel:'Адрес Aleo',addrPlaceholder:'Подключите кошелёк или вставьте aleo1…',
+      amtLabel:'Количество (макс. 1 000)',claim:'Получить SPAI →',
+      note:'Тестнет активен · Mainnet 2026',contract:'Смотреть контракт →',
+      mobileConnect:'Как подключить на телефоне',mobTitle:'Подключение на телефоне',mobStep1:'Откройте приложение Puzzle Wallet',mobStep2:'Нажмите вкладку Браузер (Browser) / dApps внизу',mobStep3:'Вставьте этот адрес в адресную строку браузера:',mobCopy:'Скопировать адрес сайта',mobCopied:'Скопировано!',mobNote:'Кошелёк подключится автоматически в браузере приложения.',
+      confirmTitle:'Подтвердите в Puzzle Wallet…',confirmSub:'Проверьте всплывающее окно',
+      sentTitle:'Транзакция отправлена',sentSub:'выпуск в ваш кошелёк',done:'Готово',
+      manualTitle:'Ручной выпуск (PowerShell)',manualSub:'Или подключите Puzzle Wallet для выпуска в 1 клик',back:'Назад',
+      noWallet:'Puzzle Wallet не найден. Установите расширение с puzzle.online или откройте эту страницу в мобильном приложении Puzzle Wallet.',
+      badAddr:'Подключите кошелёк или введите действительный адрес Aleo.',
+      failConnect:'Ошибка подключения. Разблокируйте Puzzle Wallet и попробуйте снова.'}}
+};
+
+// ════════════ SATELLITE DATA ════════════
+const SATS=[
+  {name:'AGRI-01',alt:'520 km',price:'0.08 SPAI/MB',orbit:1.22,inc:28,phase:0,
+    payload:{en:'Multispectral',ko:'다중스펙트럼',zh:'多光谱',ja:'マルチスペクトル',es:'Multiespectral',ru:'Мультиспектр'}},
+  {name:'MARITIME-02',alt:'650 km',price:'0.15 SPAI/MB',orbit:1.35,inc:52,phase:1.2,
+    payload:{en:'SAR Radar',ko:'SAR 레이더',zh:'SAR 雷达',ja:'SAR レーダー',es:'Radar SAR',ru:'SAR-радар'}},
+  {name:'OPTICAL-03',alt:'480 km',price:'0.12 SPAI/MB',orbit:1.15,inc:-35,phase:2.4,
+    payload:{en:'Optical',ko:'광학 영상',zh:'光学',ja:'光学',es:'Óptico',ru:'Оптика'}},
+  {name:'IR-04',alt:'600 km',price:'0.10 SPAI/MB',orbit:1.28,inc:70,phase:0.8,
+    payload:{en:'Infrared',ko:'적외선',zh:'红外',ja:'赤外線',es:'Infrarrojo',ru:'Инфракрасный'}},
+  {name:'DISASTER-05',alt:'550 km',price:'0.05 SPAI/MB',orbit:1.4,inc:-60,phase:3.5,
+    payload:{en:'Disaster Watch',ko:'재난감시',zh:'灾害监测',ja:'災害監視',es:'Vig. Desastres',ru:'Мониторинг ЧС'}},
+  {name:'AI-06',alt:'700 km',price:'0.20 SPAI/MB',orbit:1.18,inc:45,phase:4.2,
+    payload:{en:'AI Compute',ko:'AI 연산',zh:'AI 计算',ja:'AI 計算',es:'Cómputo IA',ru:'ИИ-вычисления'}},
+  {name:'LOGIS-07',alt:'580 km',price:'0.09 SPAI/MB',orbit:1.32,inc:-20,phase:5.0,
+    payload:{en:'Logistics',ko:'물류추적',zh:'物流',ja:'物流',es:'Logística',ru:'Логистика'}}
+];
+
+// ════════════ STATE ════════════
+let lang='en', curTab=null, connectedAddress=null, txCount=0;
+const CONTRACT_URL='https://testnet.explorer.provable.com/program/spai_token_v2.aleo';
+// 실제 배포 주소 — 미리보기(about:srcdoc)에서도 올바른 주소가 복사되도록 고정
+const SITE_URL='https://falsrb-hub.github.io/Spai/';
+function getSiteUrl(){
+  const h=window.location.href;
+  // 정상적인 http(s) 주소면 그대로, 아니면(about:srcdoc 등) 고정 주소 사용
+  return (h.startsWith('http')) ? h : SITE_URL;
+}
+
+// ════════════ LANGUAGE ════════════
+function toggleLangMenu(e){e.stopPropagation();document.getElementById('langMenu').classList.toggle('open');}
+document.addEventListener('click',()=>document.getElementById('langMenu').classList.remove('open'));
+
+function setLang(l){
+  lang=l;const t=I18N[l];
+  document.documentElement.lang=l;
+  document.getElementById('curFlag').textContent=t.flag;
+  document.getElementById('curLang').textContent=t.code;
+  document.querySelectorAll('.lang-opt').forEach((o,i)=>o.classList.toggle('active',['en','ko','zh','ja','es','ru'][i]===l));
+  document.getElementById('langMenu').classList.remove('open');
+  const $=id=>document.getElementById(id);
+  $('statusTxt').textContent=t.status;
+  $('heroKicker').textContent=t.heroKicker;
+  $('heroTitle').innerHTML=t.heroTitle;
+  $('t1').textContent=t.t1;$('t2').textContent=t.t2;$('t3').textContent=t.t3;$('t4').textContent=t.t4;
+  $('feedTitle').textContent=t.feedTitle;$('hintTxt').textContent=t.hint;
+  $('sl1').textContent=t.sl1;$('sl2').textContent=t.sl2;$('sl3').textContent=t.sl3;$('sl4').textContent=t.sl4;
+  $('spStat').textContent=t.spStat;$('spopBtn').textContent=t.spopBtn;
+  $('tab1').textContent=t.tab1;$('tab2').textContent=t.tab2;$('tab3').textContent=t.tab3;$('tab4').textContent=t.tab4;
+  if(curTab) renderTab(curTab);
+}
+
+// ════════════ TAB CONTENT RENDER ════════════
+function tabHTML(id){
+  const t=I18N[lang];
+  if(id==='tech'){const d=t.tech;
+    return `<div class="eyebrow">${d.eyebrow}</div><h2 class="h-big">${d.h}</h2><p class="lead">${d.lead}</p>
+    <a href="SPAI_Whitepaper.pdf" download class="dl-btn">📄 ${d.dl}</a>
+    ${d.cards.map(c=>`<div class="card"><div class="card-h"><div class="card-ico">${c[0]}</div><h3>${c[1]}</h3></div><p>${c[2]}</p></div>`).join('')}`;
+  }
+  if(id==='tok'){const d=t.tok;
+    return `<div class="eyebrow">${d.eyebrow}</div><h2 class="h-big">${d.h}</h2><p class="lead">${d.lead}</p>
+    ${d.rows.map(r=>`<div class="tok-row"><span class="tok-name">${r[0]}</span><div class="tok-track"><div class="tok-fill" data-w="${r[1]*2.6}%"></div></div><span class="tok-pct">${r[1]}%</span></div><div class="tok-sub">${r[2]}</div>`).join('')}`;
+  }
+  if(id==='road'){const d=t.road;
+    return `<div class="eyebrow">${d.eyebrow}</div><h2 class="h-big">${d.h}</h2><p class="lead">${d.lead}</p>
+    <div class="rm">${d.items.map(it=>`<div class="rm-item rm-${it[0]}"><div class="rm-node"></div><div class="rm-phase">${it[1]}</div><h4>${it[2]}</h4><p>${it[3]}</p></div>`).join('')}</div>`;
+  }
+  if(id==='app'){const d=t.app;
+    const isMobileDev=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const connectLabel = isMobileDev ? d.mobileConnect : d.connect;
+    return `<div class="eyebrow">${d.eyebrow}</div><h2 class="h-big">${d.h}</h2><p class="lead">${d.lead}</p>
+    <button class="w-btn" id="connBtn" onclick="connectWallet()">🔗 ${connectLabel}</button>
+    <label class="field-label">${d.addrLabel}</label>
+    <input class="field" type="text" id="wa" placeholder="${d.addrPlaceholder}">
+    <label class="field-label">${d.amtLabel}</label>
+    <input class="field" type="number" id="am" value="100" min="1" max="1000">
+    <button class="mint" onclick="doMint()">${d.claim}</button>
+    <div class="note">${d.note}<br><a href="${CONTRACT_URL}" target="_blank">${d.contract}</a></div>`;
+  }
+}
+function renderTab(id){
+  document.getElementById('ovlContent').innerHTML=tabHTML(id);
+  if(id==='tok'){requestAnimationFrame(()=>{setTimeout(()=>{document.querySelectorAll('.tok-fill').forEach(f=>f.style.width=f.dataset.w);},50);});}
+  // restore connected state
+  if(id==='app'&&connectedAddress){
+    const b=document.getElementById('connBtn');
+    if(b){b.textContent='✓ '+I18N[lang].app.connected+': '+connectedAddress.slice(0,8)+'…'+connectedAddress.slice(-4);b.style.borderColor='rgba(79,255,168,0.4)';b.style.color='#4FFFA8';}
+    const wa=document.getElementById('wa');if(wa)wa.value=connectedAddress;
+  }
+}
+function openTab(id,btn){
+  const ovl=document.getElementById('ovl');
+  if(curTab===id&&ovl.classList.contains('open')){ovl.classList.remove('open');curTab=null;document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));return;}
+  curTab=id;renderTab(id);ovl.classList.add('open');
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
+}
+
+// ════════════ WALLET (Puzzle SDK — Aleo) ════════════
+// Puzzle has no simple injected window object like Leo did. We talk to it through
+// the @puzzlehq/sdk-core module (loaded above as <script type="module">), which
+// exposes connect() / requestCreateEvent() on window.PuzzleSDK once ready.
+const PROGRAM_ID='spai_token_v2.aleo';
+const PUZZLE_STORE='https://chromewebstore.google.com/detail/puzzle-aleo-wallet/fdchdcpieegfofnofhgdombfckhbcokj';
+function isMobile(){return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);}
+
+// Resolve once the SDK module is ready (or has failed) so button clicks never hang.
+function puzzleReady(){
+  return new Promise(resolve=>{
+    if(window.PuzzleSDK)return resolve(true);
+    if(window.__puzzleReady)return resolve(!!window.PuzzleSDK);
+    const to=setTimeout(()=>{window.removeEventListener('puzzle-ready',h);resolve(!!window.PuzzleSDK);},9000);
+    function h(){clearTimeout(to);window.removeEventListener('puzzle-ready',h);resolve(!!window.PuzzleSDK);}
+    window.addEventListener('puzzle-ready',h);
+  });
+}
+
+async function connectWallet(){
+  const d=I18N[lang].app;const btn=document.getElementById('connBtn');
+  // On mobile the reliable path is opening the page inside the Puzzle app's browser.
+  if(isMobile() && !window.PuzzleSDK){showMobileGuide();return;}
+  btn.textContent=d.connecting;
+  const ready=await puzzleReady();
+  if(!ready || !window.PuzzleSDK){
+    btn.textContent='🔗 '+(isMobile()?d.mobileConnect:d.connect);
+    if(isMobile()){showMobileGuide();return;}
+    alert(d.noWallet);window.open(PUZZLE_STORE,'_blank');return;
+  }
+  try{
+    const {connect,getAccount,Network}=window.PuzzleSDK;
+    const res=await connect({
+      dAppInfo:{name:'SPAI',description:'Satellite Data Settlement Protocol',iconUrl:SITE_URL+'favicon.png'},
+      // Declare every program (incl. imports) the dApp will call. Add token_registry.aleo
+      // here too if spai_token_v2.aleo imports it.
+      permissions:{programIds:{[Network.AleoTestnet]:[PROGRAM_ID,'credits.aleo']}}
+    });
+    let addr=res&&res.connection&&res.connection.address;
+    if(!addr){try{const acc=await getAccount();addr=acc&&(acc.address||(acc.account&&acc.account.address));}catch(e){}}
+    if(!addr)throw new Error('no address');
+    connectedAddress=addr;
+    const wa=document.getElementById('wa');if(wa)wa.value=addr;
+    btn.textContent='✓ '+d.connected+': '+addr.slice(0,8)+'…'+addr.slice(-4);
+    btn.style.borderColor='rgba(79,255,168,0.4)';btn.style.color='#4FFFA8';
+  }catch(e){
+    console.error(e);btn.textContent='🔗 '+d.connect;alert(d.failConnect);
+  }
+}
+
+function showMobileGuide(){
+  const d=I18N[lang].app;
+  const url=getSiteUrl();
+  document.getElementById('ovlContent').innerHTML=`
+    <div class="eyebrow">${d.eyebrow}</div>
+    <h2 class="h-big">${d.mobTitle}</h2>
+    <div style="display:flex;flex-direction:column;gap:0.9rem;margin:1.2rem 0">
+      <div style="display:flex;gap:0.8rem;align-items:flex-start">
+        <div style="width:24px;height:24px;border-radius:50%;background:rgba(61,214,255,0.12);border:1px solid var(--cyan-dim);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:var(--cyan);flex-shrink:0;font-weight:500">1</div>
+        <div style="font-size:0.84rem;color:var(--text);padding-top:0.15rem">${d.mobStep1}</div>
+      </div>
+      <div style="display:flex;gap:0.8rem;align-items:flex-start">
+        <div style="width:24px;height:24px;border-radius:50%;background:rgba(61,214,255,0.12);border:1px solid var(--cyan-dim);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:var(--cyan);flex-shrink:0;font-weight:500">2</div>
+        <div style="font-size:0.84rem;color:var(--text);padding-top:0.15rem">${d.mobStep2}</div>
+      </div>
+      <div style="display:flex;gap:0.8rem;align-items:flex-start">
+        <div style="width:24px;height:24px;border-radius:50%;background:rgba(61,214,255,0.12);border:1px solid var(--cyan-dim);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:var(--cyan);flex-shrink:0;font-weight:500">3</div>
+        <div style="font-size:0.84rem;color:var(--text);padding-top:0.15rem">${d.mobStep3}</div>
+      </div>
+    </div>
+    <div class="mono" style="background:rgba(0,0,0,0.4);border:1px solid var(--line2);border-radius:8px;padding:0.7rem 0.85rem;font-size:0.7rem;color:var(--cyan);word-break:break-all;margin-bottom:0.8rem">${url}</div>
+    <button class="mint" id="copyBtn" onclick="copySiteUrl()">📋 ${d.mobCopy}</button>
+    <div class="note">${d.mobNote}</div>`;
+}
+
+function copySiteUrl(){
+  const d=I18N[lang].app;const url=getSiteUrl();const btn=document.getElementById('copyBtn');
+  const done=()=>{btn.textContent='✓ '+d.mobCopied;btn.style.background='var(--green)';setTimeout(()=>{btn.textContent='📋 '+d.mobCopy;btn.style.background='var(--cyan)';},2000);};
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(done).catch(()=>fallbackCopy(url,done));
+  }else{fallbackCopy(url,done);}
+}
+function fallbackCopy(text,cb){
+  const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
+  document.body.appendChild(ta);ta.select();
+  try{document.execCommand('copy');cb();}catch(e){}
+  document.body.removeChild(ta);
+}
+
+async function doMint(){
+  const d=I18N[lang].app;
+  const addr=(document.getElementById('wa').value||'').trim();
+  const amt=document.getElementById('am').value;
+  if(!addr.startsWith('aleo1')){alert(d.badAddr);return;}
+  if(window.PuzzleSDK && connectedAddress){
+    try{
+      document.getElementById('ovlContent').innerHTML=`<div style="text-align:center;padding:2.2rem 0"><div style="font-size:2rem;margin-bottom:0.8rem">⏳</div><div style="font-weight:600;font-size:0.92rem">${d.confirmTitle}</div><div style="font-size:0.76rem;color:var(--muted2);margin-top:0.5rem">${d.confirmSub}</div></div>`;
+      const {requestCreateEvent,EventType,Network}=window.PuzzleSDK;
+      const amount=parseInt(amt)*1000000; // token has 6 decimals
+      const res=await requestCreateEvent({
+        type:(EventType&&EventType.Execute)||'Execute',
+        programId:PROGRAM_ID,
+        functionId:'mint',
+        fee:0.05,                       // decimal CREDITS (Puzzle), NOT microcredits. Bump if "fee too low".
+        inputs:[connectedAddress,`${amount}u64`],
+        network:Network&&Network.AleoTestnet
+      });
+      if(res&&res.error)throw new Error(res.error);
+      const txId=(res&&res.eventId)||'submitted';
+      document.getElementById('ovlContent').innerHTML=`<div style="text-align:center;padding:2rem 0"><div style="font-size:2.4rem;margin-bottom:0.8rem">🎉</div><div style="font-weight:700;font-size:1rem;color:var(--green);margin-bottom:0.4rem">${d.sentTitle}</div><div style="font-size:0.78rem;color:var(--muted);margin-bottom:1rem">${amt} SPAI ${d.sentSub}</div><div class="mono" style="background:rgba(0,0,0,0.4);border:1px solid rgba(79,255,168,0.15);border-radius:8px;padding:0.7rem;font-size:0.62rem;word-break:break-all;color:var(--green);margin-bottom:1rem">${txId}</div><button onclick="renderTab('app')" style="background:none;border:1px solid var(--line2);color:var(--muted);padding:0.5rem 1.2rem;border-radius:7px;cursor:pointer;font-size:0.8rem;font-family:inherit">← ${d.done}</button></div>`;
+      return;
+    }catch(e){console.error(e);}
+  }
+  // fallback: Leo CLI command (the `leo` language toolchain — unrelated to the wallet)
+  const cmd=`leo execute mint ${addr} ${amt}000000u64 --network testnet --broadcast`;
+  document.getElementById('ovlContent').innerHTML=`<div style="text-align:center;padding:1.5rem 0"><div style="font-size:2rem;margin-bottom:0.8rem">🚀</div><div style="font-weight:600;font-size:0.9rem;margin-bottom:0.4rem">${d.manualTitle}</div><div style="font-size:0.74rem;color:var(--muted2);margin-bottom:0.9rem">${d.manualSub}</div><div class="mono" style="background:rgba(0,0,0,0.4);border:1px solid var(--cyan-dim);border-radius:8px;padding:0.8rem;font-size:0.66rem;text-align:left;word-break:break-all;color:var(--cyan);margin-bottom:1rem">${cmd}</div><button onclick="renderTab('app')" style="background:none;border:1px solid var(--line2);color:var(--muted);padding:0.5rem 1.1rem;border-radius:7px;cursor:pointer;font-size:0.78rem;font-family:inherit">← ${d.back}</button></div>`;
+}
+
+// ════════════ SAT POPUP ════════════
+let selSat=null;
+function showSat(hit,cx,cy){
+  selSat=hit;const t=I18N[lang];
+  document.getElementById('spopId').textContent='SAT-'+hit.sat.name;
+  document.getElementById('spopName').textContent=hit.sat.name;
+  document.getElementById('spAlt').textContent=hit.sat.alt;
+  document.getElementById('spType').textContent=hit.sat.payload[lang];
+  document.getElementById('spPrice').textContent=hit.sat.price;
+  const pop=document.getElementById('spop');
+  const pw=240,ph=230;
+  let px=cx+18,py=cy-ph/2;
+  if(px+pw>window.innerWidth)px=cx-pw-18;
+  if(py<60)py=60;
+  if(py+ph>window.innerHeight-80)py=window.innerHeight-ph-80;
+  pop.style.left=px+'px';pop.style.top=py+'px';pop.classList.add('show');
+}
+function closeSat(){selSat=null;document.getElementById('spop').classList.remove('show');}
+function simPay(){
+  if(!selSat)return;
+  const mb=(Math.random()*400+50).toFixed(0);
+  const cost=(mb*parseFloat(selSat.sat.price)).toFixed(2);
+  txCount++;document.getElementById('txCount').textContent=txCount;
+  addFeed('SAT-'+selSat.sat.name,mb+'MB',cost);
+  closeSat();
+}
+function addFeed(sat,size,cost){
+  const list=document.getElementById('feedList');
+  const el=document.createElement('div');el.className='feed-item';
+  el.innerHTML=`<span class="feed-sat">${sat} · ${size}</span><span class="feed-amt">${cost}</span>`;
+  list.insertBefore(el,list.firstChild);
+  if(list.children.length>5){const l=list.lastChild;l.style.opacity='0';setTimeout(()=>l.remove(),400);}
+}
+setInterval(()=>{if(Math.random()>0.5){const s=SATS[Math.floor(Math.random()*SATS.length)];const mb=(Math.random()*300+20).toFixed(0);const cost=(mb*parseFloat(s.price)).toFixed(2);txCount++;document.getElementById('txCount').textContent=txCount;addFeed('SAT-'+s.name,mb+'MB',cost);}},4500);
+
+// ════════════ GLOBE ENGINE ════════════
+const canvas=document.getElementById('globe'),ctx=canvas.getContext('2d');
+function sz(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;}sz();window.addEventListener('resize',sz);
+const mob=()=>window.innerWidth<=760;
+const CX=()=>canvas.width/2,CY=()=>mob()?canvas.height*0.40:canvas.height*0.5,R=()=>mob()?Math.min(canvas.width,canvas.height)*0.34:Math.min(canvas.width,canvas.height)*0.30;
+let rX=0.3,rY=0,dr=false,lx=0,ly=0,vx=0,vy=0.0022,TT=0,touchMoved=false;
+let sPos=[];
+function pr(x,y,z){const cX=Math.cos(rX),sX=Math.sin(rX),y2=y*cX-z*sX,z2=y*sX+z*cX;return{sx:CX()+x,sy:CY()-y2,depth:z2};}
+function ll(lat,lon,r){const a=lat*Math.PI/180,b=(lon+rY*180/Math.PI)*Math.PI/180;return{x:r*Math.cos(a)*Math.cos(b),y:r*Math.sin(a),z:r*Math.cos(a)*Math.sin(b)};}
+function satP(sat,t){const inc=sat.inc*Math.PI/180,spd=0.32/(sat.orbit*0.8),a=sat.phase+t*spd,r=R()*sat.orbit;return pr(r*Math.cos(a),r*Math.sin(a)*Math.cos(inc),r*Math.sin(a)*Math.sin(inc));}
+const CONTS=[[[72,234],[60,222],[50,230],[38,240],[25,246],[15,248],[10,246],[15,258],[30,248],[48,242],[62,228]],[[-20,298],[-52,290],[-40,300],[-10,322],[0,310],[10,284],[10,278],[0,270],[-10,278]],[[55,355],[52,4],[44,12],[38,14],[36,6],[44,350],[56,8]],[[36,10],[20,38],[0,42],[-34,26],[-34,18],[6,2],[22,356]],[[60,60],[52,100],[44,120],[36,130],[28,118],[18,106],[8,110],[24,120],[40,130],[52,140],[64,100]],[[-16,136],[-28,114],[-38,146],[-34,152],[-18,146]]];
+const stars=Array.from({length:220},()=>({x:Math.random(),y:Math.random(),r:Math.random()*1.1+0.2,o:Math.random()*0.5+0.12,t:Math.random()*Math.PI*2}));
+function frame(){
+  if(!dr){rY+=vy;vy=vy*0.998+0.0022*0.002;rX+=vx;vx*=0.95;rX=Math.max(-0.7,Math.min(0.7,rX));}
+  TT+=0.011;const r=R();
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  // stars
+  stars.forEach(s=>{ctx.beginPath();ctx.arc(s.x*canvas.width,s.y*canvas.height,s.r,0,Math.PI*2);ctx.fillStyle=`rgba(200,220,255,${s.o*(0.6+0.4*Math.sin(s.t+TT*0.3))})`;ctx.fill();});
+  // atmosphere
+  const atm=ctx.createRadialGradient(CX(),CY(),r*0.96,CX(),CY(),r*1.28);atm.addColorStop(0,'rgba(40,120,220,0.06)');atm.addColorStop(0.6,'rgba(30,80,180,0.03)');atm.addColorStop(1,'transparent');
+  ctx.beginPath();ctx.arc(CX(),CY(),r*1.28,0,Math.PI*2);ctx.fillStyle=atm;ctx.fill();
+  // globe
+  const g=ctx.createRadialGradient(CX()-r*0.22,CY()-r*0.25,0,CX(),CY(),r);g.addColorStop(0,'#12203c');g.addColorStop(0.6,'#0a1426');g.addColorStop(1,'#050d18');
+  ctx.beginPath();ctx.arc(CX(),CY(),r,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
+  ctx.save();ctx.beginPath();ctx.arc(CX(),CY(),r,0,Math.PI*2);ctx.clip();
+  // grid
+  for(let lat=-75;lat<=75;lat+=15){const pts=[];for(let lon=-180;lon<=180;lon+=5){const p=ll(lat,lon,r),s=pr(p.x,p.y,p.z);if(s.depth>=0)pts.push(s);}if(pts.length>1){ctx.beginPath();ctx.moveTo(pts[0].sx,pts[0].sy);pts.slice(1).forEach(p=>ctx.lineTo(p.sx,p.sy));ctx.strokeStyle='rgba(61,214,255,0.045)';ctx.lineWidth=0.5;ctx.stroke();}}
+  for(let lon=0;lon<360;lon+=15){const pts=[];for(let lat=-90;lat<=90;lat+=5){const p=ll(lat,lon,r),s=pr(p.x,p.y,p.z);if(s.depth>=0)pts.push(s);}if(pts.length>1){ctx.beginPath();ctx.moveTo(pts[0].sx,pts[0].sy);pts.slice(1).forEach(p=>ctx.lineTo(p.sx,p.sy));ctx.strokeStyle='rgba(61,214,255,0.045)';ctx.lineWidth=0.5;ctx.stroke();}}
+  // continents
+  CONTS.forEach(c=>{const pts=c.map(([la,lo])=>{const p=ll(la,lo,r);return pr(p.x,p.y,p.z);}).filter(p=>p.depth>=-r*0.1);if(pts.length<3)return;ctx.beginPath();ctx.moveTo(pts[0].sx,pts[0].sy);pts.slice(1).forEach(p=>ctx.lineTo(p.sx,p.sy));ctx.closePath();ctx.fillStyle='rgba(61,214,255,0.06)';ctx.strokeStyle='rgba(61,214,255,0.12)';ctx.lineWidth=0.6;ctx.fill();ctx.stroke();});
+  ctx.restore();
+  // edge glow
+  ctx.beginPath();ctx.arc(CX(),CY(),r,0,Math.PI*2);ctx.strokeStyle='rgba(61,214,255,0.16)';ctx.lineWidth=1;ctx.stroke();
+  // terminator shadow
+  const sh=ctx.createRadialGradient(CX()+r*0.3,CY()+r*0.3,0,CX()+r*0.3,CY()+r*0.3,r*1.4);sh.addColorStop(0,'transparent');sh.addColorStop(1,'rgba(2,4,10,0.5)');
+  ctx.save();ctx.beginPath();ctx.arc(CX(),CY(),r,0,Math.PI*2);ctx.clip();ctx.fillStyle=sh;ctx.fillRect(0,0,canvas.width,canvas.height);ctx.restore();
+  // orbits
+  SATS.forEach(sat=>{const inc=sat.inc*Math.PI/180,or=R()*sat.orbit;ctx.beginPath();let f=true;for(let i=0;i<=360;i+=4){const a=i*Math.PI/180,x=or*Math.cos(a),y=or*Math.sin(a)*Math.cos(inc),z=or*Math.sin(a)*Math.sin(inc),p=pr(x,y,z);if(p.depth<-or*0.2){f=true;continue;}if(f){ctx.moveTo(p.sx,p.sy);f=false;}else ctx.lineTo(p.sx,p.sy);}ctx.strokeStyle='rgba(61,214,255,0.06)';ctx.lineWidth=0.7;ctx.stroke();});
+  // satellites
+  sPos=[];
+  SATS.forEach((sat,i)=>{const p=satP(sat,TT);if(p.depth<-R()*0.1)return;const isS=selSat&&selSat.i===i;
+    if(isS){ctx.beginPath();ctx.arc(p.sx,p.sy,10+Math.sin(TT*5)*3,0,Math.PI*2);ctx.strokeStyle=`rgba(255,181,71,${0.4+Math.sin(TT*5)*0.2})`;ctx.lineWidth=1;ctx.stroke();
+      ctx.beginPath();ctx.moveTo(p.sx,p.sy);ctx.lineTo(CX(),CY());ctx.strokeStyle='rgba(255,181,71,0.12)';ctx.lineWidth=1;ctx.setLineDash([3,5]);ctx.stroke();ctx.setLineDash([]);}
+    ctx.beginPath();ctx.arc(p.sx,p.sy,isS?5:3.4,0,Math.PI*2);ctx.fillStyle=isS?'#FFB547':'#3DD6FF';ctx.shadowColor=isS?'#FFB547':'#3DD6FF';ctx.shadowBlur=isS?12:6;ctx.fill();ctx.shadowBlur=0;
+    ctx.fillStyle=isS?'rgba(255,181,71,0.9)':'rgba(61,214,255,0.5)';ctx.font=`${isS?500:400} 8px 'JetBrains Mono',monospace`;ctx.fillText(sat.name,p.sx+8,p.sy+3);
+    sPos.push({sx:p.sx,sy:p.sy,sat,i});});
+  requestAnimationFrame(frame);
+}
+frame();
+
+// drag + click
+canvas.addEventListener('mousedown',e=>{dr=true;lx=e.clientX;ly=e.clientY;vx=0;vy=0;});
+window.addEventListener('mousemove',e=>{if(!dr)return;const dx=e.clientX-lx,dy=e.clientY-ly;vy=dx*0.004;vx=dy*0.004;rY+=dx*0.004;rX+=dy*0.004;rX=Math.max(-0.7,Math.min(0.7,rX));lx=e.clientX;ly=e.clientY;});
+window.addEventListener('mouseup',()=>dr=false);
+canvas.addEventListener('click',e=>{const r=canvas.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;let hit=null;sPos.forEach(s=>{if(Math.hypot(s.sx-mx,s.sy-my)<16)hit=s;});if(hit)showSat(hit,e.clientX,e.clientY);else closeSat();});
+canvas.addEventListener('touchstart',e=>{dr=true;touchMoved=false;lx=e.touches[0].clientX;ly=e.touches[0].clientY;vx=0;vy=0;e.preventDefault();},{passive:false});
+canvas.addEventListener('touchmove',e=>{if(!dr)return;const dx=e.touches[0].clientX-lx,dy=e.touches[0].clientY-ly;if(Math.abs(dx)>4||Math.abs(dy)>4)touchMoved=true;vy=dx*0.004;vx=dy*0.004;rY+=dx*0.004;rX+=dy*0.004;rX=Math.max(-0.7,Math.min(0.7,rX));lx=e.touches[0].clientX;ly=e.touches[0].clientY;e.preventDefault();},{passive:false});
+window.addEventListener('touchend',e=>{dr=false;if(!touchMoved&&e.changedTouches.length){const r=canvas.getBoundingClientRect(),mx=e.changedTouches[0].clientX-r.left,my=e.changedTouches[0].clientY-r.top;let hit=null;sPos.forEach(s=>{if(Math.hypot(s.sx-mx,s.sy-my)<22)hit=s;});if(hit)showSat(hit,e.changedTouches[0].clientX,e.changedTouches[0].clientY);}});
+
+// init
+setLang('en');
+</script>
+</body>
+</html>
